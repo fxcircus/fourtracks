@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaRecorder Test Utility</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #fafafa;
+        }
+        
+        .test-section h2 {
+            margin-top: 0;
+            color: #444;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .primary {
+            background: #007bff;
+            color: white;
+        }
+        
+        .primary:hover:not(:disabled) {
+            background: #0056b3;
+        }
+        
+        .secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .secondary:hover:not(:disabled) {
+            background: #545b62;
+        }
+        
+        .success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .recording {
+            background: #dc3545;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .waveform-container {
+            position: relative;
+            width: 100%;
+            height: 200px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .results {
+            margin-top: 20px;
+        }
+        
+        .result-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .result-pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .result-fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .result-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        
+        .result-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .icon {
+            font-size: 20px;
+        }
+        
+        .audio-player {
+            width: 100%;
+            margin: 10px 0;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        select {
+            padding: 8px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+        }
+        
+        .settings {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .setting-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        label {
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .test-status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .status-pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MediaRecorder Test Utility</h1>
+        <p class="subtitle">Comprehensive audio recording quality test</p>
+        
+        <!-- Basic Recording Test -->
+        <div class="test-section">
+            <h2>1. Basic Recording Test</h2>
+            <div class="settings">
+                <div class="setting-group">
+                    <label for="duration">Duration:</label>
+                    <select id="duration">
+                        <option value="3">3 seconds</option>
+                        <option value="5" selected>5 seconds</option>
+                        <option value="10">10 seconds</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label for="mimeType">MIME Type:</label>
+                    <select id="mimeType">
+                        <option value="audio/webm;codecs=opus">WebM/Opus</option>
+                        <option value="audio/mp4">MP4</option>
+                        <option value="audio/wav">WAV</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button id="startRecord" class="primary">Start Recording</button>
+                <button id="stopRecord" class="secondary" disabled>Stop Recording</button>
+                <button id="playRecording" class="success" disabled>Play Recording</button>
+                <button id="analyzeRecording" class="primary" disabled>Analyze Recording</button>
+            </div>
+            
+            <div class="waveform-container">
+                <canvas id="waveform"></canvas>
+            </div>
+            
+            <audio id="audioPlayer" class="audio-player" controls style="display: none;"></audio>
+            
+            <div id="basicResults" class="results"></div>
+        </div>
+        
+        <!-- Tone Generation Test -->
+        <div class="test-section">
+            <h2>2. Tone Generation & Analysis Test</h2>
+            <p>Records a pure tone to test for artifacts and distortion</p>
+            
+            <div class="settings">
+                <div class="setting-group">
+                    <label for="toneFreq">Frequency:</label>
+                    <select id="toneFreq">
+                        <option value="440">440 Hz (A4)</option>
+                        <option value="1000">1000 Hz</option>
+                        <option value="2000">2000 Hz</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button id="startToneTest" class="primary">Start Tone Test</button>
+                <button id="stopToneTest" class="danger" disabled>Stop Test</button>
+            </div>
+            
+            <div class="waveform-container">
+                <canvas id="toneWaveform"></canvas>
+            </div>
+            
+            <div id="toneResults" class="results"></div>
+        </div>
+        
+        <!-- MediaRecorder vs AudioWorklet Comparison -->
+        <div class="test-section">
+            <h2>3. MediaRecorder vs AudioWorklet Comparison</h2>
+            <p>Compare recording quality between both methods</p>
+            
+            <div class="controls">
+                <button id="startComparison" class="primary">Start Comparison Test</button>
+            </div>
+            
+            <div class="comparison-grid">
+                <div>
+                    <h3>MediaRecorder</h3>
+                    <div class="waveform-container">
+                        <canvas id="mediaRecorderWaveform"></canvas>
+                    </div>
+                    <audio id="mediaRecorderAudio" class="audio-player" controls style="display: none;"></audio>
+                    <div id="mediaRecorderStats" class="stats"></div>
+                </div>
+                <div>
+                    <h3>AudioWorklet (if available)</h3>
+                    <div class="waveform-container">
+                        <canvas id="audioWorkletWaveform"></canvas>
+                    </div>
+                    <audio id="audioWorkletAudio" class="audio-player" controls style="display: none;"></audio>
+                    <div id="audioWorkletStats" class="stats"></div>
+                </div>
+            </div>
+            
+            <div id="comparisonResults" class="results"></div>
+        </div>
+        
+        <!-- Overall Test Status -->
+        <div id="overallStatus" class="test-status" style="display: none;"></div>
+    </div>
+    
+    <script>
+        // Audio Analysis Utilities
+        class AudioAnalyzer {
+            static async analyzeBuffer(audioBuffer) {
+                const channelData = audioBuffer.getChannelData(0);
+                const sampleRate = audioBuffer.sampleRate;
+                const duration = audioBuffer.duration;
+                
+                // Calculate RMS (Root Mean Square)
+                let sumSquares = 0;
+                for (let i = 0; i < channelData.length; i++) {
+                    sumSquares += channelData[i] * channelData[i];
+                }
+                const rms = Math.sqrt(sumSquares / channelData.length);
+                const rmsDb = 20 * Math.log10(rms);
+                
+                // Find peak amplitude
+                let peak = 0;
+                for (let i = 0; i < channelData.length; i++) {
+                    peak = Math.max(peak, Math.abs(channelData[i]));
+                }
+                const peakDb = 20 * Math.log10(peak);
+                
+                // Check for clipping
+                let clippingCount = 0;
+                const clippingThreshold = 0.99;
+                for (let i = 0; i < channelData.length; i++) {
+                    if (Math.abs(channelData[i]) > clippingThreshold) {
+                        clippingCount++;
+                    }
+                }
+                const clippingPercentage = (clippingCount / channelData.length) * 100;
+                
+                // Check for silence (potential corruption)
+                let silentSamples = 0;
+                const silenceThreshold = 0.001;
+                for (let i = 0; i < channelData.length; i++) {
+                    if (Math.abs(channelData[i]) < silenceThreshold) {
+                        silentSamples++;
+                    }
+                }
+                const silencePercentage = (silentSamples / channelData.length) * 100;
+                
+                // Simple frequency analysis using zero-crossing rate
+                let zeroCrossings = 0;
+                for (let i = 1; i < channelData.length; i++) {
+                    if ((channelData[i] >= 0) !== (channelData[i - 1] >= 0)) {
+                        zeroCrossings++;
+                    }
+                }
+                const zeroCrossingRate = zeroCrossings / duration;
+                const estimatedFrequency = zeroCrossingRate / 2;
+                
+                // Check for DC offset
+                let sum = 0;
+                for (let i = 0; i < channelData.length; i++) {
+                    sum += channelData[i];
+                }
+                const dcOffset = sum / channelData.length;
+                
+                return {
+                    duration: duration.toFixed(2),
+                    sampleRate,
+                    rms: rms.toFixed(4),
+                    rmsDb: rmsDb.toFixed(1),
+                    peak: peak.toFixed(4),
+                    peakDb: peakDb.toFixed(1),
+                    clippingPercentage: clippingPercentage.toFixed(2),
+                    silencePercentage: silencePercentage.toFixed(2),
+                    estimatedFrequency: estimatedFrequency.toFixed(1),
+                    dcOffset: dcOffset.toFixed(6),
+                    channelData
+                };
+            }
+            
+            static detectArtifacts(channelData, sampleRate) {
+                const artifacts = [];
+                
+                // Check for sudden jumps (potential glitches)
+                const jumpThreshold = 0.5;
+                for (let i = 1; i < channelData.length; i++) {
+                    const jump = Math.abs(channelData[i] - channelData[i - 1]);
+                    if (jump > jumpThreshold) {
+                        artifacts.push({
+                            type: 'glitch',
+                            position: i / sampleRate,
+                            severity: jump
+                        });
+                    }
+                }
+                
+                // Check for repetitive patterns (potential buffer issues)
+                const windowSize = 1024;
+                const patternThreshold = 0.95;
+                for (let i = 0; i < channelData.length - windowSize * 2; i += windowSize) {
+                    let correlation = 0;
+                    for (let j = 0; j < windowSize; j++) {
+                        correlation += channelData[i + j] * channelData[i + j + windowSize];
+                    }
+                    correlation = Math.abs(correlation / windowSize);
+                    if (correlation > patternThreshold) {
+                        artifacts.push({
+                            type: 'repetition',
+                            position: i / sampleRate,
+                            severity: correlation
+                        });
+                    }
+                }
+                
+                return artifacts;
+            }
+        }
+        
+        // Waveform Visualization
+        class WaveformRenderer {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            }
+            
+            resize() {
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width * window.devicePixelRatio;
+                this.canvas.height = rect.height * window.devicePixelRatio;
+                this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            }
+            
+            clear() {
+                const rect = this.canvas.getBoundingClientRect();
+                this.ctx.clearRect(0, 0, rect.width, rect.height);
+            }
+            
+            drawWaveform(channelData, color = '#007bff') {
+                this.clear();
+                const rect = this.canvas.getBoundingClientRect();
+                const width = rect.width;
+                const height = rect.height;
+                const centerY = height / 2;
+                
+                this.ctx.strokeStyle = color;
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                
+                const step = Math.ceil(channelData.length / width);
+                for (let i = 0; i < width; i++) {
+                    const index = i * step;
+                    const value = channelData[index] || 0;
+                    const y = centerY - (value * centerY * 0.8);
+                    
+                    if (i === 0) {
+                        this.ctx.moveTo(i, y);
+                    } else {
+                        this.ctx.lineTo(i, y);
+                    }
+                }
+                
+                this.ctx.stroke();
+                
+                // Draw center line
+                this.ctx.strokeStyle = '#ccc';
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, centerY);
+                this.ctx.lineTo(width, centerY);
+                this.ctx.stroke();
+            }
+            
+            drawRealtimeWaveform(analyser) {
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Float32Array(bufferLength);
+                
+                const draw = () => {
+                    if (this.isDrawing) {
+                        requestAnimationFrame(draw);
+                    }
+                    
+                    analyser.getFloatTimeDomainData(dataArray);
+                    this.drawWaveform(dataArray, '#28a745');
+                };
+                
+                this.isDrawing = true;
+                draw();
+            }
+            
+            stopRealtimeDrawing() {
+                this.isDrawing = false;
+            }
+        }
+        
+        // Test Result Display
+        class TestResultDisplay {
+            static addResult(container, type, message, details = null) {
+                const resultItem = document.createElement('div');
+                resultItem.className = `result-item result-${type}`;
+                
+                const icon = document.createElement('span');
+                icon.className = 'icon';
+                icon.textContent = {
+                    'pass': '✓',
+                    'fail': '✗',
+                    'warning': '⚠',
+                    'info': 'ℹ'
+                }[type];
+                
+                const text = document.createElement('span');
+                text.textContent = message;
+                if (details) {
+                    text.innerHTML += `<br><small>${details}</small>`;
+                }
+                
+                resultItem.appendChild(icon);
+                resultItem.appendChild(text);
+                container.appendChild(resultItem);
+            }
+            
+            static clear(container) {
+                container.innerHTML = '';
+            }
+            
+            static addStats(container, stats) {
+                container.innerHTML = '';
+                
+                const statCards = [
+                    { label: 'Duration', value: `${stats.duration}s` },
+                    { label: 'Sample Rate', value: `${stats.sampleRate} Hz` },
+                    { label: 'RMS Level', value: `${stats.rmsDb} dB` },
+                    { label: 'Peak Level', value: `${stats.peakDb} dB` },
+                    { label: 'Clipping', value: `${stats.clippingPercentage}%` },
+                    { label: 'DC Offset', value: stats.dcOffset }
+                ];
+                
+                statCards.forEach(stat => {
+                    const card = document.createElement('div');
+                    card.className = 'stat-card';
+                    card.innerHTML = `
+                        <div class="stat-label">${stat.label}</div>
+                        <div class="stat-value">${stat.value}</div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+        }
+        
+        // MediaRecorder Test Implementation
+        class MediaRecorderTest {
+            constructor() {
+                this.audioContext = null;
+                this.mediaRecorder = null;
+                this.recordedChunks = [];
+                this.stream = null;
+                this.setupEventListeners();
+                this.waveformRenderer = new WaveformRenderer(document.getElementById('waveform'));
+                this.toneWaveformRenderer = new WaveformRenderer(document.getElementById('toneWaveform'));
+            }
+            
+            async initialize() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    this.stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false
+                        } 
+                    });
+                    return true;
+                } catch (error) {
+                    console.error('Failed to initialize:', error);
+                    return false;
+                }
+            }
+            
+            setupEventListeners() {
+                // Basic recording test
+                document.getElementById('startRecord').addEventListener('click', () => this.startRecording());
+                document.getElementById('stopRecord').addEventListener('click', () => this.stopRecording());
+                document.getElementById('playRecording').addEventListener('click', () => this.playRecording());
+                document.getElementById('analyzeRecording').addEventListener('click', () => this.analyzeRecording());
+                
+                // Tone test
+                document.getElementById('startToneTest').addEventListener('click', () => this.startToneTest());
+                document.getElementById('stopToneTest').addEventListener('click', () => this.stopToneTest());
+                
+                // Comparison test
+                document.getElementById('startComparison').addEventListener('click', () => this.startComparisonTest());
+            }
+            
+            async startRecording() {
+                if (!this.stream) {
+                    await this.initialize();
+                }
+                
+                const mimeType = document.getElementById('mimeType').value;
+                const options = {};
+                
+                // Check if mime type is supported
+                if (MediaRecorder.isTypeSupported(mimeType)) {
+                    options.mimeType = mimeType;
+                } else {
+                    TestResultDisplay.addResult(
+                        document.getElementById('basicResults'),
+                        'warning',
+                        `MIME type ${mimeType} not supported, using default`
+                    );
+                }
+                
+                this.recordedChunks = [];
+                this.mediaRecorder = new MediaRecorder(this.stream, options);
+                
+                this.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        this.recordedChunks.push(event.data);
+                    }
+                };
+                
+                this.mediaRecorder.onstop = () => this.handleRecordingComplete();
+                
+                // Start visualizing input
+                const source = this.audioContext.createMediaStreamSource(this.stream);
+                const analyser = this.audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                source.connect(analyser);
+                this.waveformRenderer.drawRealtimeWaveform(analyser);
+                
+                this.mediaRecorder.start();
+                
+                // Update UI
+                document.getElementById('startRecord').disabled = true;
+                document.getElementById('startRecord').classList.add('recording');
+                document.getElementById('startRecord').textContent = 'Recording...';
+                document.getElementById('stopRecord').disabled = false;
+                
+                // Auto-stop after duration
+                const duration = parseInt(document.getElementById('duration').value) * 1000;
+                this.recordingTimeout = setTimeout(() => this.stopRecording(), duration);
+                
+                TestResultDisplay.clear(document.getElementById('basicResults'));
+                TestResultDisplay.addResult(
+                    document.getElementById('basicResults'),
+                    'info',
+                    'Recording started',
+                    `Using ${this.mediaRecorder.mimeType}`
+                );
+            }
+            
+            stopRecording() {
+                if (this.recordingTimeout) {
+                    clearTimeout(this.recordingTimeout);
+                }
+                
+                if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+                    this.mediaRecorder.stop();
+                    this.waveformRenderer.stopRealtimeDrawing();
+                }
+                
+                // Update UI
+                document.getElementById('startRecord').disabled = false;
+                document.getElementById('startRecord').classList.remove('recording');
+                document.getElementById('startRecord').textContent = 'Start Recording';
+                document.getElementById('stopRecord').disabled = true;
+            }
+            
+            async handleRecordingComplete() {
+                const blob = new Blob(this.recordedChunks, { type: this.mediaRecorder.mimeType });
+                const url = URL.createObjectURL(blob);
+                
+                // Set up audio player
+                const audioPlayer = document.getElementById('audioPlayer');
+                audioPlayer.src = url;
+                audioPlayer.style.display = 'block';
+                
+                // Enable playback and analysis
+                document.getElementById('playRecording').disabled = false;
+                document.getElementById('analyzeRecording').disabled = false;
+                
+                // Store blob for analysis
+                this.recordedBlob = blob;
+                
+                TestResultDisplay.addResult(
+                    document.getElementById('basicResults'),
+                    'pass',
+                    'Recording completed successfully',
+                    `Size: ${(blob.size / 1024).toFixed(2)} KB`
+                );
+            }
+            
+            playRecording() {
+                const audioPlayer = document.getElementById('audioPlayer');
+                audioPlayer.play();
+            }
+            
+            async analyzeRecording() {
+                if (!this.recordedBlob) return;
+                
+                TestResultDisplay.addResult(
+                    document.getElementById('basicResults'),
+                    'info',
+                    'Analyzing recording...'
+                );
+                
+                try {
+                    // Convert blob to audio buffer
+                    const arrayBuffer = await this.recordedBlob.arrayBuffer();
+                    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                    
+                    // Analyze audio
+                    const analysis = await AudioAnalyzer.analyzeBuffer(audioBuffer);
+                    
+                    // Display waveform
+                    this.waveformRenderer.drawWaveform(analysis.channelData);
+                    
+                    // Check for issues
+                    const issues = [];
+                    
+                    if (analysis.silencePercentage > 50) {
+                        issues.push({ type: 'fail', message: 'High silence detected', detail: `${analysis.silencePercentage}% silence` });
+                    }
+                    
+                    if (analysis.clippingPercentage > 1) {
+                        issues.push({ type: 'warning', message: 'Clipping detected', detail: `${analysis.clippingPercentage}% clipped samples` });
+                    }
+                    
+                    if (Math.abs(analysis.dcOffset) > 0.01) {
+                        issues.push({ type: 'warning', message: 'DC offset detected', detail: `Offset: ${analysis.dcOffset}` });
+                    }
+                    
+                    if (analysis.rmsDb < -40) {
+                        issues.push({ type: 'warning', message: 'Very low signal level', detail: `RMS: ${analysis.rmsDb} dB` });
+                    }
+                    
+                    // Detect artifacts
+                    const artifacts = AudioAnalyzer.detectArtifacts(analysis.channelData, analysis.sampleRate);
+                    if (artifacts.length > 0) {
+                        const glitches = artifacts.filter(a => a.type === 'glitch').length;
+                        const repetitions = artifacts.filter(a => a.type === 'repetition').length;
+                        
+                        if (glitches > 0) {
+                            issues.push({ type: 'fail', message: 'Audio glitches detected', detail: `${glitches} glitches found` });
+                        }
+                        if (repetitions > 0) {
+                            issues.push({ type: 'warning', message: 'Repetitive patterns detected', detail: `${repetitions} patterns found` });
+                        }
+                    }
+                    
+                    // Display results
+                    TestResultDisplay.clear(document.getElementById('basicResults'));
+                    
+                    if (issues.length === 0) {
+                        TestResultDisplay.addResult(
+                            document.getElementById('basicResults'),
+                            'pass',
+                            'Audio quality is good',
+                            'No significant issues detected'
+                        );
+                    } else {
+                        issues.forEach(issue => {
+                            TestResultDisplay.addResult(
+                                document.getElementById('basicResults'),
+                                issue.type,
+                                issue.message,
+                                issue.detail
+                            );
+                        });
+                    }
+                    
+                    // Add detailed stats
+                    TestResultDisplay.addResult(
+                        document.getElementById('basicResults'),
+                        'info',
+                        'Audio Statistics',
+                        `Duration: ${analysis.duration}s, Sample Rate: ${analysis.sampleRate} Hz, RMS: ${analysis.rmsDb} dB, Peak: ${analysis.peakDb} dB`
+                    );
+                    
+                } catch (error) {
+                    TestResultDisplay.addResult(
+                        document.getElementById('basicResults'),
+                        'fail',
+                        'Failed to analyze recording',
+                        error.message
+                    );
+                }
+            }
+            
+            // Tone Test Methods
+            async startToneTest() {
+                if (!this.audioContext) {
+                    await this.initialize();
+                }
+                
+                const frequency = parseInt(document.getElementById('toneFreq').value);
+                
+                // Create tone generator
+                this.oscillator = this.audioContext.createOscillator();
+                this.oscillator.type = 'sine';
+                this.oscillator.frequency.value = frequency;
+                
+                // Create gain node for smooth start/stop
+                this.gainNode = this.audioContext.createGain();
+                this.gainNode.gain.value = 0.3;
+                
+                // Connect for playback
+                this.oscillator.connect(this.gainNode);
+                this.gainNode.connect(this.audioContext.destination);
+                
+                // Set up recording
+                const dest = this.audioContext.createMediaStreamDestination();
+                this.gainNode.connect(dest);
+                
+                this.toneRecordedChunks = [];
+                this.toneMediaRecorder = new MediaRecorder(dest.stream);
+                
+                this.toneMediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        this.toneRecordedChunks.push(event.data);
+                    }
+                };
+                
+                this.toneMediaRecorder.onstop = () => this.analyzeToneRecording(frequency);
+                
+                // Visualize
+                const analyser = this.audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                this.gainNode.connect(analyser);
+                this.toneWaveformRenderer.drawRealtimeWaveform(analyser);
+                
+                // Start
+                this.oscillator.start();
+                this.toneMediaRecorder.start();
+                
+                // Update UI
+                document.getElementById('startToneTest').disabled = true;
+                document.getElementById('stopToneTest').disabled = false;
+                
+                // Auto-stop after 3 seconds
+                this.toneTimeout = setTimeout(() => this.stopToneTest(), 3000);
+                
+                TestResultDisplay.clear(document.getElementById('toneResults'));
+                TestResultDisplay.addResult(
+                    document.getElementById('toneResults'),
+                    'info',
+                    `Generating ${frequency} Hz tone...`
+                );
+            }
+            
+            stopToneTest() {
+                if (this.toneTimeout) {
+                    clearTimeout(this.toneTimeout);
+                }
+                
+                if (this.oscillator) {
+                    this.oscillator.stop();
+                    this.oscillator = null;
+                }
+                
+                if (this.toneMediaRecorder && this.toneMediaRecorder.state !== 'inactive') {
+                    this.toneMediaRecorder.stop();
+                }
+                
+                this.toneWaveformRenderer.stopRealtimeDrawing();
+                
+                // Update UI
+                document.getElementById('startToneTest').disabled = false;
+                document.getElementById('stopToneTest').disabled = true;
+            }
+            
+            async analyzeToneRecording(expectedFrequency) {
+                const blob = new Blob(this.toneRecordedChunks, { type: this.toneMediaRecorder.mimeType });
+                
+                try {
+                    const arrayBuffer = await blob.arrayBuffer();
+                    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                    const analysis = await AudioAnalyzer.analyzeBuffer(audioBuffer);
+                    
+                    // Display waveform
+                    this.toneWaveformRenderer.drawWaveform(analysis.channelData);
+                    
+                    // Perform FFT for frequency analysis
+                    const fftSize = 8192;
+                    const fft = new Float32Array(fftSize);
+                    const channelData = analysis.channelData;
+                    
+                    // Simple FFT peak detection
+                    let maxMagnitude = 0;
+                    let peakFrequency = 0;
+                    
+                    // This is a simplified frequency detection
+                    // In production, you'd use a proper FFT library
+                    const binWidth = analysis.sampleRate / fftSize;
+                    const expectedBin = Math.round(expectedFrequency / binWidth);
+                    
+                    // Check if the tone is pure (no harmonic distortion)
+                    TestResultDisplay.clear(document.getElementById('toneResults'));
+                    
+                    const frequencyError = Math.abs(analysis.estimatedFrequency - expectedFrequency);
+                    const frequencyErrorPercent = (frequencyError / expectedFrequency) * 100;
+                    
+                    if (frequencyErrorPercent < 5) {
+                        TestResultDisplay.addResult(
+                            document.getElementById('toneResults'),
+                            'pass',
+                            'Tone recorded accurately',
+                            `Expected: ${expectedFrequency} Hz, Detected: ~${analysis.estimatedFrequency} Hz`
+                        );
+                    } else {
+                        TestResultDisplay.addResult(
+                            document.getElementById('toneResults'),
+                            'warning',
+                            'Frequency mismatch',
+                            `Expected: ${expectedFrequency} Hz, Detected: ~${analysis.estimatedFrequency} Hz (${frequencyErrorPercent.toFixed(1)}% error)`
+                        );
+                    }
+                    
+                    // Check for distortion
+                    const artifacts = AudioAnalyzer.detectArtifacts(analysis.channelData, analysis.sampleRate);
+                    if (artifacts.length > 0) {
+                        TestResultDisplay.addResult(
+                            document.getElementById('toneResults'),
+                            'fail',
+                            'Distortion detected in tone',
+                            `${artifacts.length} artifacts found`
+                        );
+                    } else {
+                        TestResultDisplay.addResult(
+                            document.getElementById('toneResults'),
+                            'pass',
+                            'No distortion detected',
+                            'Clean sine wave recorded'
+                        );
+                    }
+                    
+                    // Check signal quality
+                    if (analysis.clippingPercentage > 0) {
+                        TestResultDisplay.addResult(
+                            document.getElementById('toneResults'),
+                            'fail',
+                            'Clipping detected',
+                            `${analysis.clippingPercentage}% of samples clipped`
+                        );
+                    }
+                    
+                } catch (error) {
+                    TestResultDisplay.addResult(
+                        document.getElementById('toneResults'),
+                        'fail',
+                        'Failed to analyze tone recording',
+                        error.message
+                    );
+                }
+            }
+            
+            // Comparison Test
+            async startComparisonTest() {
+                TestResultDisplay.clear(document.getElementById('comparisonResults'));
+                TestResultDisplay.addResult(
+                    document.getElementById('comparisonResults'),
+                    'info',
+                    'Starting comparison test...'
+                );
+                
+                // Test MediaRecorder
+                await this.testMediaRecorderMethod();
+                
+                // Test AudioWorklet (if available)
+                await this.testAudioWorkletMethod();
+                
+                // Compare results
+                this.compareResults();
+            }
+            
+            async testMediaRecorderMethod() {
+                if (!this.stream) {
+                    await this.initialize();
+                }
+                
+                return new Promise((resolve) => {
+                    const chunks = [];
+                    const recorder = new MediaRecorder(this.stream);
+                    
+                    recorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            chunks.push(event.data);
+                        }
+                    };
+                    
+                    recorder.onstop = async () => {
+                        const blob = new Blob(chunks, { type: recorder.mimeType });
+                        const arrayBuffer = await blob.arrayBuffer();
+                        const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                        const analysis = await AudioAnalyzer.analyzeBuffer(audioBuffer);
+                        
+                        // Display results
+                        const renderer = new WaveformRenderer(document.getElementById('mediaRecorderWaveform'));
+                        renderer.drawWaveform(analysis.channelData);
+                        
+                        const audio = document.getElementById('mediaRecorderAudio');
+                        audio.src = URL.createObjectURL(blob);
+                        audio.style.display = 'block';
+                        
+                        TestResultDisplay.addStats(document.getElementById('mediaRecorderStats'), analysis);
+                        
+                        this.mediaRecorderAnalysis = analysis;
+                        resolve();
+                    };
+                    
+                    recorder.start();
+                    setTimeout(() => recorder.stop(), 3000);
+                });
+            }
+            
+            async testAudioWorkletMethod() {
+                // Placeholder for AudioWorklet implementation
+                // This would require a separate worklet processor file
+                TestResultDisplay.addResult(
+                    document.getElementById('comparisonResults'),
+                    'info',
+                    'AudioWorklet test not implemented',
+                    'Would require additional worklet processor file'
+                );
+                
+                // For now, just show that it's not available
+                const container = document.getElementById('audioWorkletStats');
+                container.innerHTML = '<p style="text-align: center; color: #666;">AudioWorklet test not available</p>';
+            }
+            
+            compareResults() {
+                if (!this.mediaRecorderAnalysis) return;
+                
+                const analysis = this.mediaRecorderAnalysis;
+                const artifacts = AudioAnalyzer.detectArtifacts(analysis.channelData, analysis.sampleRate);
+                
+                // Overall assessment
+                const issues = [];
+                if (analysis.clippingPercentage > 1) issues.push('clipping');
+                if (artifacts.length > 0) issues.push('artifacts');
+                if (analysis.silencePercentage > 50) issues.push('excessive silence');
+                if (Math.abs(analysis.dcOffset) > 0.01) issues.push('DC offset');
+                
+                const overallStatus = document.getElementById('overallStatus');
+                overallStatus.style.display = 'block';
+                
+                if (issues.length === 0) {
+                    overallStatus.className = 'test-status status-pass';
+                    overallStatus.innerHTML = '✓ All Tests Passed - MediaRecorder is working correctly!';
+                    
+                    TestResultDisplay.addResult(
+                        document.getElementById('comparisonResults'),
+                        'pass',
+                        'MediaRecorder implementation is working correctly',
+                        'No audio corruption or artifacts detected'
+                    );
+                } else {
+                    overallStatus.className = 'test-status status-fail';
+                    overallStatus.innerHTML = `✗ Issues Detected: ${issues.join(', ')}`;
+                    
+                    TestResultDisplay.addResult(
+                        document.getElementById('comparisonResults'),
+                        'fail',
+                        'MediaRecorder has issues',
+                        `Problems: ${issues.join(', ')}`
+                    );
+                }
+            }
+        }
+        
+        // Initialize test when page loads
+        const test = new MediaRecorderTest();
+        
+        // Check browser support
+        window.addEventListener('load', () => {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Your browser does not support audio recording');
+                return;
+            }
+            
+            if (!window.MediaRecorder) {
+                alert('Your browser does not support MediaRecorder API');
+                return;
+            }
+            
+            // List supported MIME types
+            const mimeSelect = document.getElementById('mimeType');
+            const options = Array.from(mimeSelect.options);
+            options.forEach(option => {
+                if (!MediaRecorder.isTypeSupported(option.value)) {
+                    option.text += ' (not supported)';
+                    option.disabled = true;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

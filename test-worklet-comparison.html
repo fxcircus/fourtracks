@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worklet Comparison Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        
+        .test-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .test-panel {
+            border: 1px solid #333;
+            padding: 15px;
+            background: #222;
+        }
+        
+        h2 {
+            margin-top: 0;
+            color: #51cf66;
+        }
+        
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        
+        button:hover {
+            background: #444;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .waveform {
+            width: 100%;
+            height: 150px;
+            border: 1px solid #333;
+            background: #000;
+            margin: 10px 0;
+        }
+        
+        .log {
+            background: #000;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            white-space: pre-wrap;
+            font-size: 11px;
+        }
+        
+        .analysis {
+            background: #111;
+            padding: 10px;
+            border: 1px solid #333;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+        
+        .error { color: #ff6b6b; }
+        .success { color: #51cf66; }
+        .warning { color: #ffd93d; }
+    </style>
+</head>
+<body>
+    <h1>AudioWorklet Recording Comparison Test</h1>
+    <p>This test compares the original worklet with the fixed version to diagnose the metallic/robotic sound issue.</p>
+    
+    <div class="test-container">
+        <div class="test-panel">
+            <h2>Original Worklet</h2>
+            <button id="initOriginal">Initialize</button>
+            <button id="recordOriginal" disabled>Record 3s</button>
+            <button id="playOriginal" disabled>Play</button>
+            <canvas class="waveform" id="waveformOriginal"></canvas>
+            <div class="analysis" id="analysisOriginal">Analysis will appear here...</div>
+            <div class="log" id="logOriginal"></div>
+        </div>
+        
+        <div class="test-panel">
+            <h2>Optimized Worklet</h2>
+            <button id="initOptimized">Initialize</button>
+            <button id="recordOptimized" disabled>Record 3s</button>
+            <button id="playOptimized" disabled>Play</button>
+            <canvas class="waveform" id="waveformOptimized"></canvas>
+            <div class="analysis" id="analysisOptimized">Analysis will appear here...</div>
+            <div class="log" id="logOptimized"></div>
+        </div>
+    </div>
+    
+    <script type="module">
+        class WorkletTester {
+            constructor(workletPath, panelId) {
+                this.workletPath = workletPath;
+                this.panelId = panelId;
+                this.audioContext = null;
+                this.workletNode = null;
+                this.mediaStream = null;
+                this.recordedBuffer = null;
+                this.inputGain = null;
+                
+                this.log = document.getElementById(`log${panelId}`);
+                this.waveformCanvas = document.getElementById(`waveform${panelId}`);
+                this.analysisDiv = document.getElementById(`analysis${panelId}`);
+                
+                this.setupButtons();
+            }
+            
+            setupButtons() {
+                document.getElementById(`init${this.panelId}`).addEventListener('click', () => this.initialize());
+                document.getElementById(`record${this.panelId}`).addEventListener('click', () => this.record());
+                document.getElementById(`play${this.panelId}`).addEventListener('click', () => this.play());
+            }
+            
+            logMessage(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+                const line = `[${timestamp}] ${message}\n`;
+                this.log.innerHTML += `<span class="${className}">${line}</span>`;
+                this.log.scrollTop = this.log.scrollHeight;
+            }
+            
+            async initialize() {
+                try {
+                    this.logMessage('Initializing audio context...');
+                    
+                    this.audioContext = new AudioContext({
+                        sampleRate: 48000,
+                        latencyHint: 'interactive'
+                    });
+                    
+                    if (this.audioContext.state === 'suspended') {
+                        await this.audioContext.resume();
+                    }
+                    
+                    this.logMessage(`Context: ${this.audioContext.sampleRate}Hz, ${this.audioContext.state}`);
+                    
+                    // Load worklet
+                    this.logMessage(`Loading worklet: ${this.workletPath}`);
+                    await this.audioContext.audioWorklet.addModule(this.workletPath);
+                    
+                    // Create input gain
+                    this.inputGain = this.audioContext.createGain();
+                    this.inputGain.gain.value = 1.0;
+                    
+                    // Create worklet node
+                    this.workletNode = new AudioWorkletNode(
+                        this.audioContext,
+                        'recorder-processor',
+                        {
+                            numberOfInputs: 1,
+                            numberOfOutputs: 1,
+                            processorOptions: { bufferSize: 128 }
+                        }
+                    );
+                    
+                    // Set up message handling
+                    this.workletNode.port.onmessage = (event) => {
+                        this.handleWorkletMessage(event.data);
+                    };
+                    
+                    this.logMessage('Initialized successfully!', 'success');
+                    document.getElementById(`init${this.panelId}`).disabled = true;
+                    document.getElementById(`record${this.panelId}`).disabled = false;
+                    
+                } catch (error) {
+                    this.logMessage(`Init failed: ${error.message}`, 'error');
+                }
+            }
+            
+            async record() {
+                try {
+                    this.logMessage('Starting 3-second recording...');
+                    
+                    // Get microphone
+                    this.mediaStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            channelCount: 2,
+                            sampleRate: 48000,
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false
+                        }
+                    });
+                    
+                    // Connect audio chain
+                    const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+                    source.connect(this.inputGain);
+                    this.inputGain.connect(this.workletNode);
+                    
+                    // Start recording
+                    this.workletNode.port.postMessage({
+                        type: 'start',
+                        channelCount: 2
+                    });
+                    
+                    document.getElementById(`record${this.panelId}`).disabled = true;
+                    
+                    // Stop after 3 seconds
+                    setTimeout(() => {
+                        this.logMessage('Stopping recording...');
+                        this.workletNode.port.postMessage({ type: 'stop' });
+                        
+                        // Cleanup
+                        source.disconnect();
+                        this.inputGain.disconnect();
+                        this.mediaStream.getTracks().forEach(track => track.stop());
+                        
+                        document.getElementById(`record${this.panelId}`).disabled = false;
+                    }, 3000);
+                    
+                } catch (error) {
+                    this.logMessage(`Record failed: ${error.message}`, 'error');
+                    document.getElementById(`record${this.panelId}`).disabled = false;
+                }
+            }
+            
+            handleWorkletMessage(data) {
+                switch (data.type) {
+                    case 'progress':
+                        this.logMessage(`Progress: ${data.duration?.toFixed(2) || 0}s`);
+                        break;
+                        
+                    case 'recordingData':
+                        this.logMessage(`Received ${data.data.length} chunks`, 'success');
+                        this.processRecordingData(data.data);
+                        break;
+                }
+            }
+            
+            processRecordingData(chunks) {
+                if (chunks.length === 0) {
+                    this.logMessage('No data received!', 'error');
+                    return;
+                }
+                
+                // Calculate total length
+                let totalLength = 0;
+                chunks.forEach(chunk => {
+                    totalLength += chunk.channelData[0].length;
+                });
+                
+                this.logMessage(`Total samples: ${totalLength}`);
+                
+                // Create audio buffer
+                const numberOfChannels = chunks[0].channelData.length;
+                const sampleRate = this.audioContext.sampleRate;
+                
+                this.recordedBuffer = this.audioContext.createBuffer(
+                    numberOfChannels,
+                    totalLength,
+                    sampleRate
+                );
+                
+                // Copy data
+                let offset = 0;
+                for (const chunk of chunks) {
+                    for (let ch = 0; ch < numberOfChannels; ch++) {
+                        const channelData = this.recordedBuffer.getChannelData(ch);
+                        channelData.set(chunk.channelData[ch], offset);
+                    }
+                    offset += chunk.channelData[0].length;
+                }
+                
+                // Analyze and visualize
+                this.analyzeBuffer();
+                this.drawWaveform();
+                
+                document.getElementById(`play${this.panelId}`).disabled = false;
+            }
+            
+            analyzeBuffer() {
+                if (!this.recordedBuffer) return;
+                
+                const data = this.recordedBuffer.getChannelData(0);
+                let min = Infinity;
+                let max = -Infinity;
+                let sum = 0;
+                let sumSquares = 0;
+                let zeroCount = 0;
+                let clippedCount = 0;
+                
+                // Check for patterns
+                let consecutiveSame = 0;
+                let maxConsecutiveSame = 0;
+                let lastValue = data[0];
+                
+                for (let i = 0; i < data.length; i++) {
+                    const value = data[i];
+                    
+                    min = Math.min(min, value);
+                    max = Math.max(max, value);
+                    sum += value;
+                    sumSquares += value * value;
+                    
+                    if (value === 0) zeroCount++;
+                    if (Math.abs(value) >= 0.99) clippedCount++;
+                    
+                    // Check for repeated values
+                    if (Math.abs(value - lastValue) < 0.0001) {
+                        consecutiveSame++;
+                        maxConsecutiveSame = Math.max(maxConsecutiveSame, consecutiveSame);
+                    } else {
+                        consecutiveSame = 0;
+                    }
+                    lastValue = value;
+                }
+                
+                const mean = sum / data.length;
+                const rms = Math.sqrt(sumSquares / data.length);
+                const silenceRatio = zeroCount / data.length;
+                const clippingRatio = clippedCount / data.length;
+                
+                // Display analysis
+                this.analysisDiv.innerHTML = `
+                    <strong>Buffer Analysis:</strong><br>
+                    Duration: ${this.recordedBuffer.duration.toFixed(2)}s<br>
+                    Sample Rate: ${this.recordedBuffer.sampleRate}Hz<br>
+                    Channels: ${this.recordedBuffer.numberOfChannels}<br>
+                    Min/Max: ${min.toFixed(4)} / ${max.toFixed(4)}<br>
+                    RMS: ${rms.toFixed(4)}<br>
+                    DC Offset: ${mean.toFixed(6)}<br>
+                    Silence: ${(silenceRatio * 100).toFixed(1)}%<br>
+                    Clipping: ${(clippingRatio * 100).toFixed(1)}%<br>
+                    Max Consecutive Same: ${maxConsecutiveSame}<br>
+                    <span class="${maxConsecutiveSame > 100 ? 'error' : 'success'}">
+                        ${maxConsecutiveSame > 100 ? '⚠️ Possible chunking issue!' : '✓ No obvious chunking'}
+                    </span>
+                `;
+            }
+            
+            drawWaveform() {
+                if (!this.recordedBuffer) return;
+                
+                const canvas = this.waveformCanvas;
+                const ctx = canvas.getContext('2d');
+                const width = canvas.width;
+                const height = canvas.height;
+                const data = this.recordedBuffer.getChannelData(0);
+                
+                // Clear canvas
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, width, height);
+                
+                // Draw waveform
+                const step = Math.ceil(data.length / width);
+                ctx.strokeStyle = '#51cf66';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                
+                for (let i = 0; i < width; i++) {
+                    let min = 1.0;
+                    let max = -1.0;
+                    
+                    for (let j = 0; j < step; j++) {
+                        const idx = i * step + j;
+                        if (idx < data.length) {
+                            const value = data[idx];
+                            min = Math.min(min, value);
+                            max = Math.max(max, value);
+                        }
+                    }
+                    
+                    const yMin = (1 + min) * height / 2;
+                    const yMax = (1 + max) * height / 2;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(i, yMin);
+                    } else {
+                        ctx.lineTo(i, yMin);
+                    }
+                    ctx.lineTo(i, yMax);
+                }
+                
+                ctx.stroke();
+                
+                // Draw center line
+                ctx.strokeStyle = '#333';
+                ctx.beginPath();
+                ctx.moveTo(0, height / 2);
+                ctx.lineTo(width, height / 2);
+                ctx.stroke();
+            }
+            
+            play() {
+                if (!this.recordedBuffer) return;
+                
+                this.logMessage('Playing recording...');
+                
+                const source = this.audioContext.createBufferSource();
+                source.buffer = this.recordedBuffer;
+                source.connect(this.audioContext.destination);
+                
+                source.onended = () => {
+                    this.logMessage('Playback finished');
+                };
+                
+                source.start();
+            }
+        }
+        
+        // Create testers
+        const originalTester = new WorkletTester('/recorder-worklet.js', 'Original');
+        const optimizedTester = new WorkletTester('/recorder-worklet-optimized.js', 'Optimized');
+    </script>
+</body>
+</html>

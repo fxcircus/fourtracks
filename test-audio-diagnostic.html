@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Recording Diagnostic Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        
+        .controls {
+            margin: 20px 0;
+        }
+        
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        
+        button:hover {
+            background: #444;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .log {
+            background: #000;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+        
+        .waveform {
+            margin: 20px 0;
+            border: 1px solid #333;
+            background: #000;
+        }
+        
+        .status {
+            padding: 10px;
+            background: #222;
+            border: 1px solid #333;
+            margin: 10px 0;
+        }
+        
+        .error {
+            color: #ff6b6b;
+        }
+        
+        .success {
+            color: #51cf66;
+        }
+        
+        .warning {
+            color: #ffd93d;
+        }
+    </style>
+</head>
+<body>
+    <h1>Audio Recording Diagnostic Test</h1>
+    
+    <div class="status" id="status">
+        Status: Initializing...
+    </div>
+    
+    <div class="controls">
+        <button id="initBtn">Initialize Audio</button>
+        <button id="testSineBtn" disabled>Test Sine Wave</button>
+        <button id="recordBtn" disabled>Start Recording</button>
+        <button id="stopBtn" disabled>Stop Recording</button>
+        <button id="playBtn" disabled>Play Recording</button>
+        <button id="clearBtn">Clear Log</button>
+    </div>
+    
+    <canvas class="waveform" id="waveform" width="1160" height="200"></canvas>
+    
+    <h3>Diagnostic Log:</h3>
+    <div class="log" id="log"></div>
+    
+    <script type="module">
+        // Import the diagnostic recorder
+        import { AudioBufferRecorderDiagnostic } from './src/audio/AudioBufferRecorderDiagnostic.js';
+        
+        let audioContext = null;
+        let recorder = null;
+        let recordedBuffer = null;
+        let inputGain = null;
+        let mediaStream = null;
+        
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        const waveformCanvas = document.getElementById('waveform');
+        const waveformCtx = waveformCanvas.getContext('2d');
+        
+        // Logging function
+        function logMessage(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : type === 'success' ? '✅' : '📌';
+            const className = type === 'error' ? 'error' : type === 'warning' ? 'warning' : type === 'success' ? 'success' : '';
+            
+            const line = `[${timestamp}] ${prefix} ${message}\n`;
+            log.innerHTML += `<span class="${className}">${line}</span>`;
+            log.scrollTop = log.scrollHeight;
+            console.log(message);
+        }
+        
+        // Update status
+        function updateStatus(message, type = 'info') {
+            status.textContent = `Status: ${message}`;
+            status.className = `status ${type}`;
+        }
+        
+        // Draw waveform
+        function drawWaveform(audioBuffer) {
+            const width = waveformCanvas.width;
+            const height = waveformCanvas.height;
+            const data = audioBuffer.getChannelData(0);
+            const step = Math.ceil(data.length / width);
+            
+            waveformCtx.fillStyle = '#000';
+            waveformCtx.fillRect(0, 0, width, height);
+            
+            waveformCtx.strokeStyle = '#51cf66';
+            waveformCtx.lineWidth = 1;
+            waveformCtx.beginPath();
+            
+            for (let i = 0; i < width; i++) {
+                let min = 1.0;
+                let max = -1.0;
+                
+                for (let j = 0; j < step; j++) {
+                    const datum = data[i * step + j];
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
+                
+                const yMin = (1 + min) * height / 2;
+                const yMax = (1 + max) * height / 2;
+                
+                if (i === 0) {
+                    waveformCtx.moveTo(i, yMin);
+                } else {
+                    waveformCtx.lineTo(i, yMin);
+                }
+                waveformCtx.lineTo(i, yMax);
+            }
+            
+            waveformCtx.stroke();
+            
+            // Draw center line
+            waveformCtx.strokeStyle = '#333';
+            waveformCtx.beginPath();
+            waveformCtx.moveTo(0, height / 2);
+            waveformCtx.lineTo(width, height / 2);
+            waveformCtx.stroke();
+        }
+        
+        // Initialize audio
+        document.getElementById('initBtn').addEventListener('click', async () => {
+            try {
+                logMessage('Initializing audio context...');
+                
+                audioContext = new AudioContext({
+                    sampleRate: 48000,
+                    latencyHint: 'interactive'
+                });
+                
+                logMessage(`AudioContext created: sampleRate=${audioContext.sampleRate}, state=${audioContext.state}`);
+                
+                if (audioContext.state === 'suspended') {
+                    logMessage('Resuming audio context...');
+                    await audioContext.resume();
+                }
+                
+                // Create input gain
+                inputGain = audioContext.createGain();
+                inputGain.gain.value = 1.0;
+                
+                // Initialize recorder
+                recorder = new AudioBufferRecorderDiagnostic(audioContext, inputGain);
+                await recorder.initialize();
+                
+                logMessage('Audio initialized successfully!', 'success');
+                updateStatus('Ready', 'success');
+                
+                // Enable buttons
+                document.getElementById('testSineBtn').disabled = false;
+                document.getElementById('recordBtn').disabled = false;
+                document.getElementById('initBtn').disabled = true;
+                
+            } catch (error) {
+                logMessage(`Initialization failed: ${error.message}`, 'error');
+                updateStatus('Initialization failed', 'error');
+            }
+        });
+        
+        // Test sine wave
+        document.getElementById('testSineBtn').addEventListener('click', async () => {
+            try {
+                logMessage('Testing sine wave generation...');
+                updateStatus('Generating sine wave...');
+                
+                recorder.setCompleteCallback((buffer) => {
+                    logMessage('Sine wave test complete', 'success');
+                    recordedBuffer = buffer;
+                    
+                    // Create audio buffer
+                    const audioBuffer = audioContext.createBuffer(
+                        buffer.numberOfChannels,
+                        buffer.length,
+                        buffer.sampleRate
+                    );
+                    
+                    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+                        audioBuffer.copyToChannel(buffer.channelData[ch], ch);
+                    }
+                    
+                    drawWaveform(audioBuffer);
+                    document.getElementById('playBtn').disabled = false;
+                    updateStatus('Sine wave generated', 'success');
+                });
+                
+                await recorder.testSineWave();
+                
+            } catch (error) {
+                logMessage(`Sine test failed: ${error.message}`, 'error');
+                updateStatus('Sine test failed', 'error');
+            }
+        });
+        
+        // Start recording
+        document.getElementById('recordBtn').addEventListener('click', async () => {
+            try {
+                logMessage('Requesting microphone access...');
+                updateStatus('Requesting microphone...');
+                
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 2,
+                        sampleRate: 48000,
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
+                });
+                
+                const tracks = mediaStream.getTracks();
+                logMessage(`Got media stream with ${tracks.length} tracks`);
+                tracks.forEach((track, i) => {
+                    const settings = track.getSettings();
+                    logMessage(`Track ${i}: ${JSON.stringify(settings)}`);
+                });
+                
+                // Create source
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                source.connect(inputGain);
+                
+                // Set up callbacks
+                recorder.setProgressCallback((time) => {
+                    updateStatus(`Recording: ${time.toFixed(1)}s`);
+                });
+                
+                recorder.setCompleteCallback((buffer) => {
+                    logMessage(`Recording complete: ${buffer.length} samples, ${buffer.numberOfChannels} channels`, 'success');
+                    recordedBuffer = buffer;
+                    
+                    // Create audio buffer
+                    const audioBuffer = audioContext.createBuffer(
+                        buffer.numberOfChannels,
+                        buffer.length,
+                        buffer.sampleRate
+                    );
+                    
+                    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+                        audioBuffer.copyToChannel(buffer.channelData[ch], ch);
+                    }
+                    
+                    drawWaveform(audioBuffer);
+                    document.getElementById('playBtn').disabled = false;
+                    
+                    // Clean up
+                    source.disconnect();
+                    mediaStream.getTracks().forEach(track => track.stop());
+                });
+                
+                // Start recording
+                await recorder.start(2);
+                
+                logMessage('Recording started', 'success');
+                document.getElementById('recordBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+            } catch (error) {
+                logMessage(`Recording failed: ${error.message}`, 'error');
+                updateStatus('Recording failed', 'error');
+            }
+        });
+        
+        // Stop recording
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            logMessage('Stopping recording...');
+            recorder.stop();
+            
+            document.getElementById('recordBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            updateStatus('Recording stopped', 'success');
+        });
+        
+        // Play recording
+        document.getElementById('playBtn').addEventListener('click', () => {
+            if (!recordedBuffer) return;
+            
+            logMessage('Playing recording...');
+            updateStatus('Playing...');
+            
+            // Create audio buffer
+            const audioBuffer = audioContext.createBuffer(
+                recordedBuffer.numberOfChannels,
+                recordedBuffer.length,
+                recordedBuffer.sampleRate
+            );
+            
+            for (let ch = 0; ch < recordedBuffer.numberOfChannels; ch++) {
+                audioBuffer.copyToChannel(recordedBuffer.channelData[ch], ch);
+            }
+            
+            // Play
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+            
+            source.onended = () => {
+                logMessage('Playback finished');
+                updateStatus('Ready', 'success');
+            };
+            
+            source.start();
+        });
+        
+        // Clear log
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            log.innerHTML = '';
+        });
+        
+        // Initial message
+        logMessage('Audio Recording Diagnostic Test loaded');
+        logMessage('Click "Initialize Audio" to begin');
+    </script>
+</body>
+</html>

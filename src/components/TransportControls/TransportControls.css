@@ -1,0 +1,115 @@
+.transport-controls {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: #2a2a2a;
+  border-radius: 8px;
+  justify-content: center;
+  align-items: center;
+}
+
+.transport-button {
+  width: 60px;
+  height: 60px;
+  border: none;
+  border-radius: 50%;
+  background-color: #444;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.transport-button:hover:not(:disabled) {
+  background-color: #555;
+  transform: scale(1.05);
+}
+
+.transport-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.transport-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Record button */
+.transport-button.record {
+  background-color: #666;
+}
+
+.transport-button.record.active {
+  background-color: #e74c3c;
+  animation: pulse 1.5s infinite;
+}
+
+.record-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #e74c3c;
+}
+
+.transport-button.record.active .record-icon {
+  background-color: #fff;
+}
+
+/* Stop button */
+.stop-icon {
+  width: 20px;
+  height: 20px;
+  background-color: #fff;
+}
+
+/* Play button */
+.play-icon {
+  width: 0;
+  height: 0;
+  border-left: 20px solid #fff;
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  margin-left: 4px;
+}
+
+.transport-button.play.active .play-icon {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background-color: transparent;
+  position: relative;
+  margin-left: 0;
+}
+
+.transport-button.play.active .play-icon::before,
+.transport-button.play.active .play-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 20px;
+  background-color: #fff;
+}
+
+.transport-button.play.active .play-icon::before {
+  left: 0;
+}
+
+.transport-button.play.active .play-icon::after {
+  right: 0;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+  }
+}

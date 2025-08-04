@@ -1,0 +1,35 @@
+.time-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+}
+
+.time-display.recording {
+  border-color: #e74c3c;
+  box-shadow: 0 0 4px rgba(231, 76, 60, 0.3);
+}
+
+.time-label {
+  font-size: 0.75rem;
+  color: #888;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.time-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #00ff00;
+  text-shadow: 0 0 4px rgba(0, 255, 0, 0.3);
+  letter-spacing: 0.1em;
+}
+
+.time-display.recording .time-value {
+  color: #ff3333;
+  text-shadow: 0 0 4px rgba(255, 51, 51, 0.3);
+}

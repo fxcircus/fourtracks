@@ -1,0 +1,159 @@
+.track-controls {
+  background-color: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 1rem;
+  width: 100%;
+}
+
+.track-controls-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.track-name {
+  font-weight: 600;
+  color: #fff;
+}
+
+.track-status {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.status-indicator {
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  animation: blink 1s infinite;
+}
+
+.status-indicator.recording {
+  background-color: #e74c3c;
+  color: #fff;
+}
+
+.status-indicator.playing {
+  background-color: #27ae60;
+  color: #fff;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.3; }
+}
+
+.track-controls-main {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.mute-button {
+  width: 40px;
+  height: 40px;
+  border: 2px solid #666;
+  border-radius: 4px;
+  background-color: transparent;
+  color: #666;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mute-button:hover:not(:disabled) {
+  border-color: #888;
+  color: #888;
+}
+
+.mute-button.muted {
+  background-color: #e74c3c;
+  border-color: #e74c3c;
+  color: #fff;
+}
+
+.mute-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.volume-control {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.volume-slider {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #444;
+  outline: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.volume-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.volume-value {
+  min-width: 45px;
+  text-align: right;
+  color: #ccc;
+  font-size: 0.875rem;
+}
+
+.level-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.level-meter {
+  height: 4px;
+  background-color: #1a1a1a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.level-bar {
+  height: 100%;
+  transition: width 0.1s ease-out;
+}
+
+.level-bar.peak {
+  background: linear-gradient(to right, #27ae60 0%, #27ae60 70%, #f39c12 85%, #e74c3c 95%);
+}
+
+.level-bar.rms {
+  background-color: #3498db;
+  opacity: 0.7;
+}

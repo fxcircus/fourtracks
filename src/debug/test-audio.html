@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FourTracks Audio Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: #fff; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; }
+        #output { margin-top: 20px; padding: 20px; background: #2a2a2a; border-radius: 5px; }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .info { color: #2196F3; }
+        canvas { margin-top: 10px; background: #000; display: block; }
+    </style>
+</head>
+<body>
+    <h1>FourTracks Audio Test Page</h1>
+    <p>This page tests basic Web Audio API functionality</p>
+    
+    <button onclick="testMicrophone()">Test Microphone Access</button>
+    <button onclick="testAudioContext()">Test Audio Context</button>
+    <button onclick="testRecording()">Test Recording (5 seconds)</button>
+    <button onclick="listDevices()">List Audio Devices</button>
+    
+    <div id="output"></div>
+    <canvas id="visualizer" width="600" height="200"></canvas>
+    
+    <script>
+        let audioContext;
+        let mediaStream;
+        let analyser;
+        let visualizerRunning = false;
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            output.appendChild(div);
+            console.log(message);
+        }
+        
+        async function testMicrophone() {
+            try {
+                log('Requesting microphone access...');
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                log('✅ Microphone access granted!', 'success');
+                
+                const tracks = mediaStream.getTracks();
+                tracks.forEach(track => {
+                    log(`Track: ${track.label} (${track.kind})`, 'info');
+                });
+                
+                // Don't stop the stream yet, we might use it for other tests
+            } catch (error) {
+                log(`❌ Microphone access failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testAudioContext() {
+            try {
+                log('Creating AudioContext...');
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                log(`✅ AudioContext created! State: ${audioContext.state}, Sample Rate: ${audioContext.sampleRate}`, 'success');
+                
+                if (audioContext.state === 'suspended') {
+                    log('Resuming AudioContext...');
+                    await audioContext.resume();
+                    log('✅ AudioContext resumed!', 'success');
+                }
+                
+                // Test if we can create nodes
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                gainNode.gain.value = 0.1;
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 440; // A4 note
+                oscillator.start();
+                
+                log('Playing 440Hz test tone for 0.5 seconds...', 'info');
+                
+                setTimeout(() => {
+                    oscillator.stop();
+                    log('✅ Test tone completed!', 'success');
+                }, 500);
+                
+            } catch (error) {
+                log(`❌ AudioContext test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testRecording() {
+            try {
+                if (!mediaStream) {
+                    await testMicrophone();
+                }
+                
+                if (!audioContext) {
+                    await testAudioContext();
+                }
+                
+                log('Starting recording test...');
+                
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                const recorder = audioContext.createScriptProcessor(4096, 2, 2);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                
+                let recordedChunks = [];
+                let sampleCount = 0;
+                
+                recorder.onaudioprocess = (event) => {
+                    const inputBuffer = event.inputBuffer;
+                    const leftChannel = inputBuffer.getChannelData(0);
+                    const rightChannel = inputBuffer.getChannelData(1);
+                    
+                    // Store chunks
+                    recordedChunks.push({
+                        left: new Float32Array(leftChannel),
+                        right: new Float32Array(rightChannel)
+                    });
+                    
+                    // Check if we're getting audio
+                    const maxLeft = Math.max(...Array.from(leftChannel).map(Math.abs));
+                    const maxRight = Math.max(...Array.from(rightChannel).map(Math.abs));
+                    
+                    if (sampleCount % 10 === 0) { // Log every 10th sample
+                        if (maxLeft > 0.001 || maxRight > 0.001) {
+                            log(`📊 Audio detected! L: ${maxLeft.toFixed(4)}, R: ${maxRight.toFixed(4)}`, 'success');
+                        } else {
+                            log(`📊 Silent... L: ${maxLeft.toFixed(4)}, R: ${maxRight.toFixed(4)}`, 'info');
+                        }
+                    }
+                    sampleCount++;
+                };
+                
+                // Connect the chain
+                source.connect(analyser);
+                analyser.connect(recorder);
+                recorder.connect(audioContext.destination);
+                
+                // Start visualizer
+                if (!visualizerRunning) {
+                    visualizerRunning = true;
+                    visualize();
+                }
+                
+                log('Recording for 5 seconds...', 'info');
+                
+                setTimeout(() => {
+                    recorder.disconnect();
+                    source.disconnect();
+                    
+                    // Calculate if we captured any audio
+                    let hasAudio = false;
+                    let totalSamples = 0;
+                    
+                    recordedChunks.forEach(chunk => {
+                        const maxL = Math.max(...Array.from(chunk.left).map(Math.abs));
+                        const maxR = Math.max(...Array.from(chunk.right).map(Math.abs));
+                        if (maxL > 0.001 || maxR > 0.001) hasAudio = true;
+                        totalSamples += chunk.left.length;
+                    });
+                    
+                    if (hasAudio) {
+                        log(`✅ Recording complete! Captured ${recordedChunks.length} chunks, ${totalSamples} total samples with audio content.`, 'success');
+                    } else {
+                        log(`⚠️ Recording complete but no audio detected! Captured ${recordedChunks.length} chunks, ${totalSamples} total samples.`, 'error');
+                        log('Try speaking louder or check your microphone settings.', 'info');
+                    }
+                    
+                    visualizerRunning = false;
+                }, 5000);
+                
+            } catch (error) {
+                log(`❌ Recording test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function listDevices() {
+            try {
+                log('Enumerating audio devices...');
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                
+                const audioInputs = devices.filter(device => device.kind === 'audioinput');
+                const audioOutputs = devices.filter(device => device.kind === 'audiooutput');
+                
+                log(`Found ${audioInputs.length} input devices:`, 'info');
+                audioInputs.forEach((device, index) => {
+                    log(`  ${index + 1}. ${device.label || `Microphone ${index + 1}`} (${device.deviceId})`, 'info');
+                });
+                
+                log(`Found ${audioOutputs.length} output devices:`, 'info');
+                audioOutputs.forEach((device, index) => {
+                    log(`  ${index + 1}. ${device.label || `Speaker ${index + 1}`} (${device.deviceId})`, 'info');
+                });
+                
+            } catch (error) {
+                log(`❌ Device enumeration failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function visualize() {
+            if (!visualizerRunning || !analyser) return;
+            
+            const canvas = document.getElementById('visualizer');
+            const canvasCtx = canvas.getContext('2d');
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function draw() {
+                if (!visualizerRunning) return;
+                
+                requestAnimationFrame(draw);
+                
+                analyser.getByteTimeDomainData(dataArray);
+                
+                canvasCtx.fillStyle = 'rgb(0, 0, 0)';
+                canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                canvasCtx.lineWidth = 2;
+                canvasCtx.strokeStyle = 'rgb(0, 255, 0)';
+                canvasCtx.beginPath();
+                
+                const sliceWidth = canvas.width * 1.0 / bufferLength;
+                let x = 0;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    const v = dataArray[i] / 128.0;
+                    const y = v * canvas.height / 2;
+                    
+                    if (i === 0) {
+                        canvasCtx.moveTo(x, y);
+                    } else {
+                        canvasCtx.lineTo(x, y);
+                    }
+                    
+                    x += sliceWidth;
+                }
+                
+                canvasCtx.lineTo(canvas.width, canvas.height / 2);
+                canvasCtx.stroke();
+            }
+            
+            draw();
+        }
+        
+        // Auto-test on load
+        window.onload = () => {
+            log('FourTracks Audio Test Page loaded', 'info');
+            log('Click the buttons above to test different audio features', 'info');
+        };
+    </script>
+</body>
+</html>
